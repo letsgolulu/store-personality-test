@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   DIMENSIONS,
   balancedProfile,
@@ -12,7 +12,8 @@ import {
 import { RadarChart } from "@/components/radar-chart";
 import { defaultSiteContent, resolveProfile, type SiteContent } from "@/lib/site-content";
 import { resultUrl, pageUrl } from "@/lib/client";
-import { shopIllustrations } from "@/lib/store-art";
+import { loadShopArtwork, shopIllustrations } from "@/lib/store-art";
+import { blobDataUrl, canvasPng, fillRoundedRect, withTimeout, type LoadedArtwork } from "@/lib/image-runtime";
 import "@/styles/shop-art.css";
 
 export type SavedResult = AssessmentOutcome & {
@@ -34,9 +35,7 @@ function roundRect(
   height: number,
   radius: number,
 ) {
-  context.beginPath();
-  context.roundRect(x, y, width, height, radius);
-  context.fill();
+  fillRoundedRect(context, x, y, width, height, radius);
 }
 
 function wrapText(
@@ -118,12 +117,27 @@ export function ResultView({ result, shareUrl, content = defaultSiteContent }: R
   const [modalOpen, setModalOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
-  const [exportImage, setExportImage] = useState<{ url: string; file: File } | null>(null);
-  useEffect(() => () => { if (exportImage) URL.revokeObjectURL(exportImage.url); }, [exportImage]);
+  const [exportImage, setExportImage] = useState<{ url: string; file: File | null; filename: string } | null>(null);
+  const [exportError, setExportError] = useState("");
+  const [artState, setArtState] = useState<{ id: string; art?: LoadedArtwork; error?: string }>({ id: "" });
+  const [artRetry, setArtRetry] = useState(0);
+  const saveLock = useRef(false);
   const profile = useMemo(() => resolveProfile(result.primaryId, content), [result.primaryId, content]);
   const secondary = useMemo(() => resolveProfile(result.secondaryId, content), [result.secondaryId, content]);
   const isBalanced = profile.id === balancedProfile.id;
   const artwork = shopIllustrations[profile.id];
+  const loadedArt = artState.id === profile.id ? artState.art : undefined;
+  const artError = artState.id === profile.id ? artState.error : undefined;
+  useEffect(() => {
+    let active = true;
+    setArtState({ id: profile.id });
+    if (artwork) loadShopArtwork(profile.id).then(art => {
+      if (active) setArtState({ id: profile.id, art });
+    }, error => {
+      if (active) setArtState({ id: profile.id, error: error instanceof Error ? error.message : "插画加载失败，请重试" });
+    });
+    return () => { active = false; };
+  }, [profile.id, artwork, artRetry]);
   const secondaryName = isBalanced ? "暂无明显副店型" : secondary.name;
   const dominant = useMemo(() => getDominantDimensions(result.scores), [result.scores]);
   const resolvedShareUrl = shareUrl ?? resultUrl(result.resultId);
@@ -149,32 +163,35 @@ export function ResultView({ result, shareUrl, content = defaultSiteContent }: R
   };
 
   const saveLongImage = async () => {
+    if (saveLock.current) return;
+    saveLock.current = true;
     setBusy(true);
+    setExportError("");
     try {
-      if (document.fonts?.ready) await document.fonts.ready;
+      // A pending web font must never prevent exporting with the system font.
+      if (document.fonts?.ready) await withTimeout(document.fonts.ready, 1200, "Font timeout").catch(() => undefined);
       const illustrated = Boolean(artwork);
-      const illustration = illustrated ? await new Promise<HTMLImageElement>((resolve, reject) => {
-        const image = new Image();
-        image.onload = () => resolve(image);
-        image.onerror = () => reject(new Error("店铺插画加载失败"));
-        image.src = artwork;
-      }) : null;
+      const illustration = illustrated ? (await loadShopArtwork(profile.id)).image : null;
       const canvas = document.createElement("canvas");
-      canvas.width = 1080;
-      canvas.height = Math.max(3600, 3400 + Math.ceil(profile.analysis.join("").length / 24) * 49) + (illustrated ? 650 : 0);
+      const logicalHeight = Math.max(3600, 3400 + Math.ceil(profile.analysis.join("").length / 24) * 49) + (illustrated ? 650 : 0);
+      const exportWidth = window.innerWidth <= 600 ? 900 : 1080;
+      const scale = exportWidth / 1080;
+      canvas.width = exportWidth;
+      canvas.height = Math.ceil(logicalHeight * scale);
       const context = canvas.getContext("2d");
       if (!context) throw new Error("Canvas unavailable");
+      context.scale(scale, scale);
 
-      const gradient = context.createLinearGradient(0, 0, 1080, canvas.height);
+      const gradient = context.createLinearGradient(0, 0, 1080, logicalHeight);
       gradient.addColorStop(0, profile.palette[2]);
       gradient.addColorStop(0.48, "#fffaf2");
       gradient.addColorStop(1, "#f1e5d7");
       context.fillStyle = gradient;
-      context.fillRect(0, 0, 1080, canvas.height);
+      context.fillRect(0, 0, 1080, logicalHeight);
 
       if (illustration) {
         context.fillStyle = "#fbf5e9";
-        context.fillRect(0, 0, 1080, canvas.height);
+        context.fillRect(0, 0, 1080, logicalHeight);
         context.drawImage(illustration, -50, 0, 1180, 1180);
         // Fade only the illustration layer into the surrounding ivory paper.
         const bottomFade = context.createLinearGradient(0, 940, 0, 1180);
@@ -199,6 +216,7 @@ export function ResultView({ result, shareUrl, content = defaultSiteContent }: R
         titleContext.fillStyle = titleBottomFade;
         titleContext.fillRect(0, 0, 1080, 1180);
         context.drawImage(titleLayer, 0, 0);
+        titleLayer.width = titleLayer.height = 1;
       }
 
       if (!illustrated) {
@@ -285,19 +303,29 @@ export function ResultView({ result, shareUrl, content = defaultSiteContent }: R
       // clipping longer reports to a fixed 2820px image.
       const output = document.createElement("canvas");
       output.width = canvas.width;
-      output.height = footerY + 80;
+      output.height = Math.ceil((footerY + 80) * scale);
       const outputContext = output.getContext("2d");
       if (!outputContext) throw new Error("Canvas unavailable");
       outputContext.drawImage(canvas, 0, 0);
-      const blob = await new Promise<Blob | null>((resolve) => output.toBlob(resolve, "image/png", 0.96));
-      if (!blob) throw new Error("Image generation failed");
-      const file = new File([blob], `${profile.name}-店铺人格测试.png`, { type: "image/png" });
-      setExportImage({ url: URL.createObjectURL(blob), file });
+      // Release the large drawing bitmap before encoding the cropped output.
+      canvas.width = canvas.height = 1;
+      try {
+        const blob = await canvasPng(output);
+        const filename = `${profile.name}-店铺人格测试.png`;
+        let file: File | null = null;
+        try { if (typeof File === "function") file = new File([blob], filename, { type: "image/png" }); } catch { /* Preview/download still work without File. */ }
+        // Data URLs support long-press saving in more embedded iOS browsers than
+        // transient blob: URLs, and don't need an extra network request.
+        setExportImage({ url: await blobDataUrl(blob), file, filename });
+      } finally { output.width = output.height = 1; }
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       console.error(error);
-      showNotice("生成长图失败，请稍后再试");
+      const message = error instanceof Error && /[\u4e00-\u9fff]/.test(error.message) ? error.message : "生成长图失败，请重试；微信内可在 Safari 浏览器打开结果链接后保存";
+      setExportError(message);
+      showNotice(message);
     } finally {
+      saveLock.current = false;
       setBusy(false);
     }
   };
@@ -307,7 +335,11 @@ export function ResultView({ result, shareUrl, content = defaultSiteContent }: R
       <div className="result-shell">
         <section className="result-card" id="result-card">
           <div className={artwork ? "result-hero illustrated-hero" : "result-hero"}>
-            {artwork && <img className="shop-hero-art" src={artwork} alt={`${profile.name}店铺插画`} />}
+            {artwork && loadedArt && <img className="shop-hero-art" src={loadedArt.src} alt={`${profile.name}店铺插画`} />}
+            {artwork && !loadedArt && <div className="shop-art-status" role="status">
+              <span>{artError || "正在布置你的店铺插画…"}</span>
+              {artError && <button onClick={() => { setExportError(""); setArtRetry(value => value + 1); }}>重新加载插画</button>}
+            </div>}
             <div className={artwork ? "shop-hero-copy" : undefined}>
               <p className="eyebrow">你的店铺人格</p>
               <div className="result-symbol" aria-hidden="true">{profile.emoji}</div>
@@ -365,8 +397,9 @@ export function ResultView({ result, shareUrl, content = defaultSiteContent }: R
 
         <section className="result-actions" aria-label="结果操作">
           <button className="primary-button" onClick={saveLongImage} disabled={busy}>
-            {busy ? "正在生成长图…" : "保存结果长图"}
+            {busy ? artwork && !loadedArt ? "正在加载插画，请稍候…" : "正在生成长图…" : "保存结果长图"}
           </button>
+          {exportError && <p className="export-error" role="alert">{exportError}</p>}
           <button className="secondary-button" onClick={copyLink}>复制结果链接</button>
           <div className="action-row">
             <button className="ghost-button" onClick={() => { sessionStorage.removeItem("store-supabase-draft-v1"); window.location.href = pageUrl("/?retest=1"); window.location.reload(); }}>再测一次</button>
@@ -381,12 +414,12 @@ export function ResultView({ result, shareUrl, content = defaultSiteContent }: R
         <section className="gift-modal export-modal" role="dialog" aria-modal="true" aria-labelledby="export-title">
           <button className="modal-close" aria-label="关闭长图预览" onClick={() => setExportImage(null)}>×</button>
           <h2 id="export-title">你的店铺长图已生成</h2>
-          <p>电脑可下载 PNG；苹果手机可长按下方图片保存，或打开系统分享菜单选择“存储图像”。浏览器不能直接替你写入手机相册。</p>
+          <p>长按下方图片可保存到手机；电脑可下载 PNG。微信内若不能保存，请点击右上角“···”，在 Safari 浏览器打开结果链接后保存。</p>
           <div className="export-image-scroll"><img src={exportImage.url} alt={`${profile.name}的完整测评结果长图`} /></div>
-          <a className="primary-button" href={exportImage.url} download={exportImage.file.name}>下载 PNG 长图</a>
+          <a className="primary-button" href={exportImage.url} download={exportImage.filename}>下载 PNG 长图</a>
           <button className="secondary-button" onClick={async () => {
             try {
-              if(navigator.share && navigator.canShare?.({files:[exportImage.file]})) await navigator.share({files:[exportImage.file],title:`我的店铺人格：${profile.name}`});
+              if(exportImage.file && navigator.share && navigator.canShare?.({files:[exportImage.file]})) await navigator.share({files:[exportImage.file],title:`我的店铺人格：${profile.name}`});
               else showNotice("当前浏览器不支持系统分享，请下载或长按图片保存");
             } catch(error) { if(!(error instanceof DOMException && error.name==="AbortError")) showNotice("请下载或长按图片保存"); }
           }}>打开系统分享</button>
