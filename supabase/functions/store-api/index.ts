@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.118.0";
-import { classifyScores, scoreAssessment, storeProfiles, balancedProfile } from "../../../lib/assessment.ts";
-import { defaultSiteContent, validateSiteContent, resolveProfile } from "../../../lib/site-content.ts";
+import { classifyScores, scoreAssessment, storeProfiles } from "../../../lib/assessment.ts";
+import { confirmedSiteContent, defaultSiteContent, validateSiteContent, resolveProfile } from "../../../lib/site-content.ts";
 import { csvCell, parseCodeBatch, AdminError } from "../../../lib/admin-utils.ts";
 
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false, autoRefreshToken: false } });
@@ -41,7 +41,7 @@ Deno.serve(async (req: Request) => {
       try { body=JSON.parse(raw); } catch { throw new ApiError("请求格式不正确"); }
       if (!body || typeof body!=="object" || Array.isArray(body)) throw new ApiError("请求格式不正确");
     }
-    if (path==="/api/content" && req.method==="GET") return json(await rpc("content") ?? defaultSiteContent);
+    if (path==="/api/content" && req.method==="GET") return json(confirmedSiteContent(await rpc("content") ?? defaultSiteContent));
     if (path==="/api/access" && req.method==="POST") {
       const code=typeof body.code==="string" ? body.code.trim().toUpperCase() : "";
       if (!code || code.length>80) throw new ApiError("请输入有效的测试密码");
@@ -53,7 +53,8 @@ Deno.serve(async (req: Request) => {
     if (path==="/api/results" && req.method==="POST") {
       if (typeof body.sessionToken!=="string" || !/^[a-f0-9-]{36}$/i.test(body.sessionToken)) throw new ApiError("测试会话无效");
       let outcome; try { outcome=scoreAssessment(body.answers); } catch { throw new ApiError("请完整回答36道题，每题选择1至5"); }
-      return json(await rpc("submit",{sessionToken:body.sessionToken,...outcome}));
+      const saved = await rpc("submit",{sessionToken:body.sessionToken,...outcome});
+      return json({...saved,...classifyScores(saved.scores)});
     }
     const resultMatch=path.match(/^\/api\/results\/([a-f0-9]{32})$/);
     if (resultMatch && req.method==="GET") { const result=await rpc("result",{id:resultMatch[1]}); return json({...result,...classifyScores(result.scores)}); }
@@ -65,7 +66,7 @@ Deno.serve(async (req: Request) => {
     const identity=await rpc("admin/me",{},user.id);
     const route=path.slice("/api/admin/".length);
     if (route==="me" && req.method==="GET") return json(identity);
-    const content=await rpc("content") ?? defaultSiteContent;
+    const content=confirmedSiteContent(await rpc("content") ?? defaultSiteContent);
     if (route==="content" && req.method==="GET") return json(content);
     if (route==="content" && req.method==="PUT") {
       let parsed; try { parsed=validateSiteContent(body); } catch(err) { throw new ApiError(err instanceof Error ? err.message : "文案格式错误"); }
@@ -105,7 +106,7 @@ Deno.serve(async (req: Request) => {
       const data=await rpc("admin/overview",{},user.id); const counts:Record<string,number>={};
       for(const row of data.grouped){const id=classifyScores(row.scores).primaryId;counts[id]=(counts[id]??0)+row.count;}
       delete data.grouped;
-      data.distribution=[...storeProfiles,balancedProfile].map(p=>({id:p.id,name:resolveProfile(p.id,content).name,count:counts[p.id]??0})).sort((a,b)=>b.count-a.count);
+      data.distribution=storeProfiles.map(p=>({id:p.id,name:resolveProfile(p.id,content).name,count:counts[p.id]??0})).sort((a,b)=>b.count-a.count);
       return json(data);
     }
     throw new ApiError("管理功能不存在",404);

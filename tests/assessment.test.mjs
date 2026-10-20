@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { DIMENSIONS, balancedProfile, classifyScores, questions, scoreAssessment, storeProfiles } from "../lib/assessment.ts";
+import { DIMENSIONS, classifyScores, getProfile, matchingCaution, questions, scoreAssessment, storeProfiles } from "../lib/assessment.ts";
+import { confirmedSiteContent, defaultSiteContent, validateSiteContent } from "../lib/site-content.ts";
+import { existsSync } from "node:fs";
 
 // Build valid responses with a specified mean in each dimension, including
 // reverse-keyed questions. Half-strength prototypes test realistic, non-extreme
@@ -44,16 +46,43 @@ test("different response patterns are not all classified as the cafe", () => {
   const middle = scoreAssessment(Array(36).fill(3));
   const high = scoreAssessment(Array(36).fill(5));
   assert.equal(low.primaryId, "seaside-grocery");
-  assert.equal(middle.primaryId, balancedProfile.id);
+  assert.equal(middle.primaryId, "community-bakery");
   assert.equal(high.primaryId, "concept-store");
   assert.equal(new Set([low.primaryId, middle.primaryId, high.primaryId]).size, 3);
 });
 
-test("neutral responses and small changes near the midpoint do not force a personality label", () => {
-  for (const value of [2, 3, 4]) assert.equal(scoreAssessment(Array(36).fill(value)).primaryId, balancedProfile.id);
+test("midpoint answers only use the approved 12 shops and explicitly warn about weak differentiation", () => {
+  const ids = new Set(storeProfiles.map(profile => profile.id));
+  for (const value of [2, 3, 4]) {
+    const result = scoreAssessment(Array(36).fill(value));
+    assert.ok(ids.has(result.primaryId));
+    assert.ok(ids.has(result.secondaryId));
+    assert.notEqual(result.primaryId, result.secondaryId);
+    assert.ok(matchingCaution(result.scores));
+  }
+  const midpoint = scoreAssessment(Array(36).fill(3));
+  assert.equal(midpoint.primaryId, "community-bakery");
+  assert.match(matchingCaution(midpoint.scores), /固定顺序/);
   const answers = Array(36).fill(3);
   answers[0] = 4;
-  assert.equal(scoreAssessment(answers).primaryId, balancedProfile.id);
+  assert.ok(matchingCaution(scoreAssessment(answers).scores));
+  assert.equal(matchingCaution(scoreAssessment(Array(36).fill(5)).scores), "");
+});
+
+test("exactly 12 approved profiles exist and every one has an illustration", () => {
+  assert.equal(storeProfiles.length, 12);
+  assert.equal(new Set(storeProfiles.map(profile => profile.id)).size, 12);
+  assert.equal(defaultSiteContent.profiles.length, 12);
+  for (const profile of storeProfiles) assert.ok(existsSync(new URL(`../public/illustrations/${profile.id}.jpg`, import.meta.url)));
+  assert.throws(() => getProfile("retired-unapproved"), /Unknown store/);
+});
+
+test("retired profile content is filtered on read and cannot be republished from an old editor", () => {
+  const old = { ...defaultSiteContent, profiles: [...defaultSiteContent.profiles, {...defaultSiteContent.profiles[0],id:"retired-unapproved"}] };
+  assert.equal(confirmedSiteContent(old).profiles.length,12);
+  assert.deepEqual(confirmedSiteContent(old).questionTexts,defaultSiteContent.questionTexts);
+  assert.throws(() => validateSiteContent(old), /12种店型/);
+  assert.equal(validateSiteContent(defaultSiteContent).profiles.length,12);
 });
 
 test("changing one response only affects its own dimension, including reverse scoring", () => {
@@ -91,6 +120,7 @@ test("deterministic simulated responses no longer collapse into the cafe", () =>
     counts[result.primaryId] = (counts[result.primaryId] ?? 0) + 1;
   }
   for (const profile of storeProfiles) assert.ok(counts[profile.id] > 0, `${profile.id} should be reachable`);
+  assert.equal(Object.keys(counts).length, 12, "no thirteenth outcome can be produced");
   // A regression guard, not a population distribution or a target quota.
   assert.ok(counts["corner-cafe"] < 2_000, "the cafe should not swallow most answer patterns");
   console.log("Simulated outcome counts (not human norms):", counts);

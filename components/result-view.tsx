@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   DIMENSIONS,
-  balancedProfile,
+  classifyScores,
+  matchingCaution,
   dimensionMeta,
   getDominantDimensions,
   type AssessmentOutcome,
@@ -122,9 +123,13 @@ export function ResultView({ result, shareUrl, content = defaultSiteContent }: R
   const [artState, setArtState] = useState<{ id: string; art?: LoadedArtwork; error?: string }>({ id: "" });
   const [artRetry, setArtRetry] = useState(0);
   const saveLock = useRef(false);
-  const profile = useMemo(() => resolveProfile(result.primaryId, content), [result.primaryId, content]);
-  const secondary = useMemo(() => resolveProfile(result.secondaryId, content), [result.secondaryId, content]);
-  const isBalanced = profile.id === balancedProfile.id;
+  // Reapply current rules to saved scores, including reports from retired types.
+  const matched = useMemo(() => classifyScores(result.scores), [result.scores]);
+  const primaryId = shopIllustrations[result.primaryId] ? result.primaryId : matched.primaryId;
+  const secondaryId = shopIllustrations[result.secondaryId] ? result.secondaryId : matched.secondaryId;
+  const profile = useMemo(() => resolveProfile(primaryId, content), [primaryId, content]);
+  const secondary = useMemo(() => resolveProfile(secondaryId, content), [secondaryId, content]);
+  const caution = matchingCaution(result.scores);
   const artwork = shopIllustrations[profile.id];
   const loadedArt = artState.id === profile.id ? artState.art : undefined;
   const artError = artState.id === profile.id ? artState.error : undefined;
@@ -138,7 +143,7 @@ export function ResultView({ result, shareUrl, content = defaultSiteContent }: R
     });
     return () => { active = false; };
   }, [profile.id, artwork, artRetry]);
-  const secondaryName = isBalanced ? "暂无明显副店型" : secondary.name;
+  const secondaryName = secondary.name;
   const dominant = useMemo(() => getDominantDimensions(result.scores), [result.scores]);
   const resolvedShareUrl = shareUrl ?? resultUrl(result.resultId);
 
@@ -248,6 +253,11 @@ export function ResultView({ result, shareUrl, content = defaultSiteContent }: R
       context.fillStyle = profile.palette[0];
       context.font = `700 ${illustrated ? 38 : 42}px -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif`;
       let y = wrapText(context, `“${profile.quote}”`, 100, illustrated ? 1250 : 700, 880, 62);
+      if (caution) {
+        context.fillStyle = "#6c625b";
+        context.font = "28px -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif";
+        y = wrapText(context, caution, 100, y + 14, 880, 42) + 24;
+      }
 
       context.fillStyle = "rgba(255,255,255,.78)";
       roundRect(context, 64, y + 18, 952, 600, 42);
@@ -360,7 +370,7 @@ export function ResultView({ result, shareUrl, content = defaultSiteContent }: R
             </div>
             <div className="profile-notes">
               <p className="eyebrow">你的六维轮廓</p>
-              <h2>{isBalanced ? "目前更接近平衡区间" : "你最鲜明的两种气质"}</h2>
+              <h2>{caution ? "这次偏好区分较弱" : "你最鲜明的两种气质"}</h2>
               {dominant.map(({ dimension, score }) => (
                 <div className="dominant-row" key={dimension}>
                   <div>
@@ -370,7 +380,7 @@ export function ResultView({ result, shareUrl, content = defaultSiteContent }: R
                   <b>{score}</b>
                 </div>
               ))}
-              <p className="method-note">{isBalanced ? "本次六项分数整体接近中间，暂不强行区分主副店型。分数反映这次的自我描述，并非能力高低。" : "人格更像连续的调音台，而不是非黑即白的格子。店铺类型根据六项偏好的方向组合匹配；分数并非人群百分位或能力等级。"}</p>
+              <p className="method-note">{caution || "人格更像连续的调音台，而不是非黑即白的格子。店铺类型根据六项偏好的方向组合匹配；分数并非人群百分位或能力等级。"}</p>
             </div>
           </section>
 

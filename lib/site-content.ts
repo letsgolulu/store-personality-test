@@ -1,4 +1,4 @@
-import { questions, storeProfiles, balancedProfile, type StoreProfile } from "./assessment.ts";
+import { questions, storeProfiles, type StoreProfile } from "./assessment.ts";
 
 export type ProfileCopy = Pick<StoreProfile, "id" | "name" | "kicker" | "quote" | "tags" | "analysis" | "strength" | "misunderstood" | "lesson" | "rule">;
 export type SiteContent = {
@@ -15,11 +15,16 @@ export const defaultSiteContent: SiteContent = {
   revision: 0,
   updatedAt: null,
   questionTexts: questions.map((question) => question.text),
-  profiles: [...storeProfiles, balancedProfile].map(({ id, name, kicker, quote, tags, analysis, strength, misunderstood, lesson, rule }) => ({ id, name, kicker, quote, tags, analysis, strength, misunderstood, lesson, rule })),
+  profiles: storeProfiles.map(({ id, name, kicker, quote, tags, analysis, strength, misunderstood, lesson, rule }) => ({ id, name, kicker, quote, tags, analysis, strength, misunderstood, lesson, rule })),
   giftMessage: "这是店铺人格测评的非商业体验版。结果用于自我探索与娱乐参考，不是心理诊断。欢迎保存海报，和朋友分享你的店铺故事。",
   giftTitle: "谢谢你的认真体验",
   giftButtonLabel: "体验说明",
 };
+
+export function confirmedSiteContent(content: SiteContent): SiteContent {
+  const ids = new Set(storeProfiles.map(profile => profile.id));
+  return { ...content, profiles: content.profiles.filter(profile => ids.has(profile.id)) };
+}
 
 function boundedText(value: unknown, label: string, max: number) {
   if (typeof value !== "string" || !value.trim() || value.trim().length > max) throw new Error(`${label}请填写1至${max}字`);
@@ -31,7 +36,7 @@ export function validateSiteContent(value: unknown): SiteContent {
   const input = value as Record<string, unknown>;
   if (!Number.isSafeInteger(input.revision) || Number(input.revision) < 0) throw new Error("文案版本无效");
   if (!Array.isArray(input.questionTexts) || input.questionTexts.length !== questions.length) throw new Error("请保留完整的36道题目");
-  if (!Array.isArray(input.profiles) || input.profiles.length !== defaultSiteContent.profiles.length) throw new Error("店型文案不完整");
+  if (!Array.isArray(input.profiles) || input.profiles.length !== defaultSiteContent.profiles.length) throw new Error("请只保留确认的12种店型；旧页面请刷新后再编辑");
   const profiles = defaultSiteContent.profiles.map((original) => {
     const matching = (input.profiles as Record<string, unknown>[]).filter((item) => item?.id === original.id);
     if (matching.length !== 1) throw new Error("店型编号重复或缺失");
@@ -62,7 +67,8 @@ export function validateSiteContent(value: unknown): SiteContent {
 }
 
 export function resolveProfile(id: string, content: SiteContent) {
-  const original = [...storeProfiles, balancedProfile].find((profile) => profile.id === id) ?? balancedProfile;
+  const original = storeProfiles.find((profile) => profile.id === id);
+  if (!original) throw new Error("Unknown store profile");
   const copy = content.profiles.find((profile) => profile.id === original.id);
   return { ...original, ...copy };
 }

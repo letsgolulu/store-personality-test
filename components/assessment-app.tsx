@@ -277,7 +277,7 @@ export function AssessmentApp({ content = defaultSiteContent }: { content?: Site
           </div>
           <div className="scene-caption">
             <strong>12种店铺人格</strong>
-            <span>另设平衡型，不强行给你贴标签</span>
+            <span>12种店型均配有专属插画</span>
           </div>
         </div>
       </section>

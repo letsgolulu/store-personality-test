@@ -298,26 +298,13 @@ export const storeProfiles: StoreProfile[] = [
   },
 ];
 
-// A neutral outcome is separate from the 12 directional shop profiles. A lack
-// of differentiated preferences should not be presented as a specific trait.
-export const balancedProfile: StoreProfile = {
-  id: "balanced-store",
-  name: "街区生活集合店",
-  emoji: "⌂",
-  kicker: "暂时没有被一种风格定义的人",
-  quote: "我的货架上有很多可能，暂时不必只挂一块招牌。",
-  tags: ["偏好较均衡", "多面可能", "保留探索"],
-  palette: ["#536453", "#be986b", "#f3efe2"],
-  prototype: { E: 0, O: 0, S: 0, W: 0, A: 0, R: 0 },
-  analysis: [
-    "这次作答中，你的六项分数整体接近中间区间，暂时没有足够鲜明的方向来确定一种主店型。这可能反映了你在不同情境中会采用不同方式，也可能是部分题目对你而言难以判断。单凭这些答案，不能推断你一定灵活、全面，或没有个性。",
-    "人格特征通常是连续的，而店铺只是帮助理解的比喻。中间分数并不代表能力普通，也不代表各种性格都一样强。你可以回想最近真实发生的一次聚会、一次计划变更或一次冲突，再区分自己实际做了什么，以及自己希望怎么做。",
-  ],
-  strength: "给自己的多种可能留出位置",
-  misunderstood: "中间分数不等于没有个性",
-  lesson: "用具体经历辨认偏好，不必刻意选择极端答案",
-  rule: "暂时没有唯一招牌，也值得认真了解自己。",
-};
+// A presentation caution, not another shop type or a validated clinical cutoff.
+export function matchingCaution(scores: Record<Dimension, number>): string {
+  const distance = Math.hypot(...DIMENSIONS.map(dimension => scores[dimension] - 50));
+  if (distance === 0) return "本次六维得分都在中点，12种店型没有明确高下。以下按固定顺序展示参考店型，不代表明确的性格归属。";
+  if (distance / Math.sqrt(DIMENSIONS.length) <= 25 / 3) return "本次得分整体接近中间，店型区分较弱。以下仅为12种店型中的相对匹配，少量答案变化可能改变结果，请结合六维分数理解，不作确定的性格结论。";
+  return "";
+}
 
 export function classifyScores(scores: Record<Dimension, number>): AssessmentOutcome {
   if (DIMENSIONS.some((dimension) => !Number.isFinite(scores[dimension]) || scores[dimension] < 0 || scores[dimension] > 100)) {
@@ -327,12 +314,6 @@ export function classifyScores(scores: Record<Dimension, number>): AssessmentOut
   const centered = DIMENSIONS.map((dimension) => (scores[dimension] - 50) / 25);
   const magnitude = Math.hypot(...centered);
 
-  // At most one third of a response point away from neutral on average
-  // (quadratic mean). This is a product rule, not an empirical clinical cutoff.
-  if (magnitude / Math.sqrt(DIMENSIONS.length) <= 1 / 3) {
-    return { primaryId: balancedProfile.id, secondaryId: balancedProfile.id, scores };
-  }
-
   // Compare directions at equal strength. Raw Euclidean distance adds each
   // prototype's squared magnitude to the cost, unfairly favoring short vectors
   // such as the cafe whenever users' averaged scores fall near the center.
@@ -340,12 +321,14 @@ export function classifyScores(scores: Record<Dimension, number>): AssessmentOut
     .map((profile) => {
       const prototypeMagnitude = Math.hypot(...DIMENSIONS.map((dimension) => profile.prototype[dimension]));
       const similarity = DIMENSIONS.reduce(
-        (sum, dimension, index) => sum + (centered[index] / magnitude) * (profile.prototype[dimension] / prototypeMagnitude),
+        (sum, dimension, index) => sum + (centered[index] / (magnitude || 1)) * (profile.prototype[dimension] / prototypeMagnitude),
         0,
       );
       return { id: profile.id, similarity };
     })
-    .sort((a, b) => b.similarity - a.similarity || a.id.localeCompare(b.id));
+    // Exact ties (including all-midpoint scores) use a fixed ID order. Never
+    // invent a thirteenth type, randomize, or imply that tied scores are distinct.
+    .sort((a, b) => b.similarity - a.similarity || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 
   return { primaryId: ranked[0].id, secondaryId: ranked[1].id, scores };
 }
@@ -373,8 +356,9 @@ export function scoreAssessment(answers: number[]): AssessmentOutcome {
 }
 
 export function getProfile(id: string) {
-  if (id === balancedProfile.id) return balancedProfile;
-  return storeProfiles.find((profile) => profile.id === id) ?? storeProfiles[0];
+  const profile = storeProfiles.find((profile) => profile.id === id);
+  if (!profile) throw new Error("Unknown store profile");
+  return profile;
 }
 
 export function getDominantDimensions(scores: Record<Dimension, number>) {

@@ -9,14 +9,14 @@ async function request(path,body) {
   const response=await fetch(base+path,{headers:{Origin:"https://letsgolulu.github.io",apikey:publishableKey,"Content-Type":"application/json"},method:body?"POST":"GET",body:body?JSON.stringify(body):undefined});
   const data=await response.json();return {status:response.status,data};
 }
-const content=await request("/api/content"); assert.equal(content.status,200);assert.equal(content.data.questionTexts.length,36);assert.equal(content.data.profiles.length,13);
+const content=await request("/api/content"); assert.equal(content.status,200);assert.equal(content.data.questionTexts.length,36);assert.equal(content.data.profiles.length,12);
 assert.equal((await request("/api/admin/overview")).status,401);
 assert.equal((await request("/api/results/00000000000000000000000000000000")).status,404);
 assert.equal((await request("/api/results",{sessionToken:"invalid",answers:[]})).status,400);
 const attempts=await Promise.all(Array.from({length:6},()=>request("/api/access",{code})));
 const accepted=attempts.filter(a=>a.status===200);assert.equal(accepted.length,3);assert.equal(attempts.filter(a=>a.status===403).length,3);
 assert.deepEqual(accepted.map(a=>a.data.remainingUses).sort(),[0,1,2]);
-const expected=["seaside-grocery","balanced-store","concept-store"];
+const expected=["seaside-grocery","community-bakery","concept-store"];
 const results=[];
 for(const [i,value] of [1,3,5].entries()) {
   const payload={sessionToken:accepted[i].data.sessionToken,answers:Array(36).fill(value)};
