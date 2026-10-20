@@ -16,9 +16,9 @@ export const defaultSiteContent: SiteContent = {
   updatedAt: null,
   questionTexts: questions.map((question) => question.text),
   profiles: [...storeProfiles, balancedProfile].map(({ id, name, kicker, quote, tags, analysis, strength, misunderstood, lesson, rule }) => ({ id, name, kicker, quote, tags, analysis, strength, misunderstood, lesson, rule })),
-  giftMessage: "店铺好评后，请联系客服并发送好评截图，即可获得1元返现。",
+  giftMessage: "这是店铺人格测评的非商业体验版。结果用于自我探索与娱乐参考，不是心理诊断。欢迎保存海报，和朋友分享你的店铺故事。",
   giftTitle: "谢谢你的认真体验",
-  giftButtonLabel: "好评有礼 · 返1元",
+  giftButtonLabel: "体验说明",
 };
 
 function boundedText(value: unknown, label: string, max: number) {

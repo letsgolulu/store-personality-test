@@ -1,0 +1,6 @@
+project_id = "store-personality-test"
+
+[functions.store-api]
+# Public quiz endpoints use access-code sessions. Admin endpoints independently
+# verify the Auth JWT and the server-side administrator allowlist.
+verify_jwt = false

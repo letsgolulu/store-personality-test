@@ -397,7 +397,7 @@ export function ResultView({ result, shareUrl, content = defaultSiteContent }: R
         <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setModalOpen(false); }}>
           <section className="gift-modal" role="dialog" aria-modal="true" aria-labelledby="gift-title">
             <button className="modal-close" aria-label="关闭" onClick={() => setModalOpen(false)}>×</button>
-            <div className="gift-icon">¥1</div>
+            <div className="gift-icon">✦</div>
             <p className="eyebrow">好评有礼</p>
             <h2 id="gift-title">{content.giftTitle}</h2>
             <p>{content.giftMessage}</p>
