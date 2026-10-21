@@ -1,15 +1,26 @@
-.result-hero.illustrated-hero { position: relative; isolation: isolate; display: block; padding: 0; min-height: 0; aspect-ratio: 1080 / 1180; overflow: hidden; background: #fbf5e9; }
+/* The 1080px design space is shared with canvas export. Typography follows
+   card width, not viewport width; specificity prevents mobile overrides. */
+.result-card { container-type: inline-size; }
+.result-card .result-hero.illustrated-hero { --poster-unit: clamp(.24px, .087vw, .7963px); position: relative; isolation: isolate; display: block; padding: 0; min-height: 0; aspect-ratio: 1080 / 1180; overflow: hidden; background: #fbf5e9; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+@supports (width: 1cqw) {
+  .result-card .result-hero.illustrated-hero { --poster-unit: calc(100cqw / 1080); }
+}
 .shop-hero-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.shop-art-status { position: absolute; top: 10%; left: 7%; right: 7%; z-index: 4; display: grid; justify-items: center; gap: 12px; padding: 16px; color: #66594e; text-align: center; font-size: 14px; }
-.shop-art-status button { border: 1px solid currentColor; border-radius: 24px; padding: 10px 18px; background: #fffaf2; color: var(--profile); font: inherit; cursor: pointer; }
+.shop-art-preview { filter: blur(1px); }
+.shop-art-status { position: absolute; top: 3%; left: 5%; right: 5%; z-index: 4; display: grid; justify-items: center; gap: 8px; color: #453e39; text-align: center; font: 12px/1.5 -apple-system, sans-serif; }
+.shop-art-status span { padding: 5px 10px; border-radius: 14px; background: rgba(255,250,242,.9); }
+.shop-art-status button { border: 1px solid currentColor; border-radius: 24px; padding: 8px 14px; background: #fffaf2; color: var(--profile); font: inherit; cursor: pointer; }
 .export-error { margin: 0; padding: 12px 16px; border-radius: 14px; color: #8a3329; background: #fff2e9; line-height: 1.7; }
 .illustrated-hero::before { content: ""; position: absolute; inset: 0; z-index: 1; background: radial-gradient(ellipse at 100% 100%, #fbf5e9 0%, rgba(251,245,233,.96) 20%, rgba(251,245,233,.82) 35%, transparent 62%); }
 .illustrated-hero::after { content: ""; position: absolute; inset: auto 0 0; height: 22%; z-index: 2; background: linear-gradient(transparent, #fbf5e9); }
-.shop-hero-copy { position: absolute; z-index: 3; right: 6%; bottom: 9%; max-width: 88%; text-align: right; }
-.illustrated-hero .eyebrow { margin: 0 0 8px; }
-.illustrated-hero .result-symbol { font-size: clamp(36px, 7vw, 72px); margin: 0 0 5px; }
-.illustrated-hero h1 { font-size: clamp(32px, 6vw, 64px); line-height: 1.2; }
-.illustrated-hero .result-kicker { margin: 8px 0 12px; font-size: clamp(14px, 2.3vw, 23px); }
-.illustrated-hero .tag-list { max-width: none; justify-content: flex-end; gap: 4px 10px; }
-.illustrated-hero .tag-list span { padding: 0; border: 0; border-radius: 0; background: none; color: var(--profile); font-size: clamp(11px, 1.8vw, 17px); font-weight: 600; }
-.illustrated-hero + blockquote { background: #fbf5e9; border-top: 0; }
+.result-card .shop-hero-copy { position: absolute; z-index: 3; right: 5.93%; bottom: 8.9%; width: 65%; max-width: 65%; text-align: right; }
+.result-card .illustrated-hero .eyebrow { margin: 0 0 calc(var(--poster-unit) * 16); font-size: calc(var(--poster-unit) * 30); letter-spacing: calc(var(--poster-unit) * 3); }
+.result-card .illustrated-hero .result-symbol { font-size: calc(var(--poster-unit) * 100); margin: 0 0 calc(var(--poster-unit) * 14); line-height: 1; }
+.result-card .illustrated-hero h1 { margin: 0; font-size: calc(var(--poster-unit) * 78); line-height: 1.2; font-weight: 800; letter-spacing: -.045em; white-space: nowrap; }
+.result-card .illustrated-hero .result-kicker { margin: calc(var(--poster-unit) * 20) 0 calc(var(--poster-unit) * 24); font-size: calc(var(--poster-unit) * 32); line-height: 1.4; }
+.result-card .illustrated-hero .tag-list { width: 100%; max-width: none; justify-content: flex-end; gap: calc(var(--poster-unit) * 8) calc(var(--poster-unit) * 20); }
+.result-card .illustrated-hero .tag-list span { padding: 0; border: 0; border-radius: 0; background: none; color: var(--profile); font-size: calc(var(--poster-unit) * 28); line-height: 1.5; font-weight: 600; }
+.result-card .illustrated-hero + blockquote { background: #fbf5e9; border-top: 0; font-size: clamp(16px, 3.52vw, 30px); padding: 5.5% 9.26%; line-height: 1.63; }
+@supports (width: 1cqw) {
+  .result-card .illustrated-hero + blockquote { font-size: max(16px, 3.52cqw); }
+}

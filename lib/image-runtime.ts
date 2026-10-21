@@ -30,6 +30,39 @@ export function loadDecodedImage(source: string, timeoutMs = 12000, createImage 
 
 export type LoadedArtwork = { src: string; image: HTMLImageElement };
 
+export async function loadCachedArtwork(source: string, dependencies: {
+  cacheStorage?: CacheStorage;
+  fetcher?: typeof fetch;
+  decode?: typeof loadDecodedImage;
+  toDataUrl?: typeof blobDataUrl;
+} = {}): Promise<LoadedArtwork> {
+  const { cacheStorage = globalThis.caches, fetcher = globalThis.fetch,
+    decode = loadDecodedImage, toDataUrl = blobDataUrl } = dependencies;
+  // Restricted/quota-limited storage must not block rendering or export.
+  const cache = await withTimeout(Promise.resolve().then(() => cacheStorage?.open("shop-art-v3")), 250, "Cache unavailable").catch(() => undefined);
+  const cached = cache && await withTimeout(cache.match(source), 250, "Cache unavailable").catch(() => undefined);
+  const decodeResponse = async (response: Response) => {
+    if (!response.ok || !response.headers.get("content-type")?.startsWith("image/")) throw new Error("插画加载失败，请重试");
+    const blob = await withTimeout(response.blob(), 1500, "插画读取超时");
+    const src = await toDataUrl(blob, 1500);
+    return { src, image: await decode(src, 2000) };
+  };
+  if (cached) {
+    try { return await decodeResponse(cached); }
+    catch { void cache?.delete(source).catch(() => undefined); }
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 7000);
+  try {
+    const response = await withTimeout(fetcher(source, { cache: "force-cache", signal: controller.signal }), 7000, "插画加载超时，请重试");
+    const copy = response.clone();
+    const artwork = await decodeResponse(response);
+    // Store only successfully decoded static artwork, never private API data.
+    if (cache) void withTimeout(cache.put(source, copy), 1000, "Cache unavailable").catch(() => undefined);
+    return artwork;
+  } finally { clearTimeout(timer); controller.abort(); }
+}
+
 // A result page and its export share one decoded bitmap. Failed requests are
 // evicted so Retry actually makes a new attempt instead of reusing a rejection.
 export function createArtworkCache(load: (id: string) => Promise<LoadedArtwork>) {

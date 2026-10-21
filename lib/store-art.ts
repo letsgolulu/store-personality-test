@@ -1,38 +1,25 @@
-import { createArtworkCache, loadDecodedImage, withTimeout } from "./image-runtime";
+import { createArtworkCache, loadCachedArtwork } from "./image-runtime";
+import manifest from "./art-manifest.json";
 
-export const shopIllustrations: Record<string, string> = Object.fromEntries([
-  "night-convenience", "corner-cafe", "indie-bookstore", "rainy-records",
-  "weekend-florist", "concept-store", "vintage-shop", "midnight-diner",
-  "seaside-grocery", "study-room", "rooftop-bar", "community-bakery",
-].map(id => [id, `${import.meta.env.BASE_URL}illustrations/${id}.jpg`]));
-
-// Only the result's own illustration is loaded. Each lazy chunk embeds the
-// approved JPEG, avoiding a second image request and failed-image cache on iOS.
-const embedded: Record<string, () => Promise<{ default: string }>> = {
-  "night-convenience": () => import("virtual:store-illustration/night-convenience"),
-  "corner-cafe": () => import("virtual:store-illustration/corner-cafe"),
-  "indie-bookstore": () => import("virtual:store-illustration/indie-bookstore"),
-  "rainy-records": () => import("virtual:store-illustration/rainy-records"),
-  "weekend-florist": () => import("virtual:store-illustration/weekend-florist"),
-  "concept-store": () => import("virtual:store-illustration/concept-store"),
-  "vintage-shop": () => import("virtual:store-illustration/vintage-shop"),
-  "midnight-diner": () => import("virtual:store-illustration/midnight-diner"),
-  "seaside-grocery": () => import("virtual:store-illustration/seaside-grocery"),
-  "study-room": () => import("virtual:store-illustration/study-room"),
-  "rooftop-bar": () => import("virtual:store-illustration/rooftop-bar"),
-  "community-bakery": () => import("virtual:store-illustration/community-bakery"),
-};
-
+const entries: Record<string, { webp: string; jpeg: string; preferred: string; preview: string }> = manifest;
+export const shopIllustrations: Record<string, string> = Object.fromEntries(
+  Object.entries(entries).map(([id, art]) => [id, `${import.meta.env.BASE_URL}${art.preferred === "webp" ? art.webp : art.jpeg}`]),
+);
+// Tiny previews travel with the app: no extra request or blank hero.
+export const shopPreviews: Record<string, string> = Object.fromEntries(
+  Object.entries(entries).map(([id, art]) => [id, art.preview]),
+);
 export const loadShopArtwork = createArtworkCache(async id => {
-  if (!embedded[id] || !shopIllustrations[id]) throw new Error("没有找到这家店的插画");
+  const art = entries[id];
+  if (!art) throw new Error("没有找到这家店的插画");
   try {
-    const module = await withTimeout(embedded[id](), 14000, "插画加载超时");
-    const image = await loadDecodedImage(module.default, 5000);
-    return { src: module.default, image };
+    return await loadCachedArtwork(shopIllustrations[id]);
   } catch {
-    // Independent fallback when a mobile network fails a module request. The
-    // timestamp avoids reusing a previously failed image response in WebViews.
-    const src = `${shopIllustrations[id]}?retry=${Date.now()}`;
-    return { src, image: await loadDecodedImage(src, 10000) };
+    // Format fallback, not a promise of a different network route.
+    try {
+      return await loadCachedArtwork(`${import.meta.env.BASE_URL}${art.preferred === "webp" ? art.jpeg : art.webp}`);
+    } catch {
+      throw new Error("清晰插画尚未加载完成，请检查网络后重试；预览图会继续保留");
+    }
   }
 });

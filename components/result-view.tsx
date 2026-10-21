@@ -13,7 +13,7 @@ import {
 import { RadarChart } from "@/components/radar-chart";
 import { defaultSiteContent, resolveProfile, type SiteContent } from "@/lib/site-content";
 import { resultUrl, pageUrl } from "@/lib/client";
-import { loadShopArtwork, shopIllustrations } from "@/lib/store-art";
+import { loadShopArtwork, shopIllustrations, shopPreviews } from "@/lib/store-art";
 import { blobDataUrl, canvasPng, fillRoundedRect, withTimeout, type LoadedArtwork } from "@/lib/image-runtime";
 import "@/styles/shop-art.css";
 
@@ -345,9 +345,9 @@ export function ResultView({ result, shareUrl, content = defaultSiteContent }: R
       <div className="result-shell">
         <section className="result-card" id="result-card">
           <div className={artwork ? "result-hero illustrated-hero" : "result-hero"}>
-            {artwork && loadedArt && <img className="shop-hero-art" src={loadedArt.src} alt={`${profile.name}店铺插画`} />}
+            {artwork && <img className={`shop-hero-art${loadedArt ? "" : " shop-art-preview"}`} src={loadedArt?.src ?? shopPreviews[profile.id]} alt={`${profile.name}店铺插画`} width={1080} height={1080} />}
             {artwork && !loadedArt && <div className="shop-art-status" role="status">
-              <span>{artError || "正在布置你的店铺插画…"}</span>
+              <span>{artError ? "当前显示预览图，清晰插画暂未加载完成" : "预览已显示，正在加载清晰插画…"}</span>
               {artError && <button onClick={() => { setExportError(""); setArtRetry(value => value + 1); }}>重新加载插画</button>}
             </div>}
             <div className={artwork ? "shop-hero-copy" : undefined}>
