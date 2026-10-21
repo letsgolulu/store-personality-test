@@ -197,8 +197,10 @@ button:disabled { cursor: not-allowed; opacity: 0.48; }
   display: grid;
   min-height: 370px;
   padding: 92px 32px 28px;
-  grid-template-columns: 1fr 0.72fr 1fr;
-  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.72fr) minmax(0, 1fr);
+  grid-template-rows: auto 242px;
+  column-gap: 18px;
+  row-gap: 16px;
   border: 7px solid var(--navy);
   border-radius: 18px 18px 5px 5px;
   background: #f8ddbb;
@@ -209,17 +211,17 @@ button:disabled { cursor: not-allowed; opacity: 0.48; }
 .awning { position: absolute; top: -12px; left: -16px; display: flex; width: calc(100% + 32px); height: 86px; overflow: hidden; border: 6px solid var(--navy); border-radius: 14px 14px 22px 22px; background: #fff7e8; }
 .awning span { flex: 1; border-right: 3px solid var(--navy); background: #fff1d8; }
 .awning span:nth-child(even) { background: #d96a45; }
-.store-sign { position: absolute; top: 94px; left: 50%; width: max-content; max-width: 86%; transform: translateX(-50%); color: var(--navy); font-family: Georgia, "Songti SC", serif; font-size: clamp(14px, 1.6vw, 21px); font-weight: 700; letter-spacing: 0.04em; }
+.store-sign { position: relative; grid-column: 1 / -1; grid-row: 1; align-self: center; min-width: 0; margin: 0; color: var(--navy); text-align: center; font-family: Georgia, "Songti SC", serif; font-size: clamp(14px, 1.6vw, 21px); font-weight: 700; letter-spacing: 0.04em; line-height: 1.5; }
 
-.shop-window, .shop-door { position: relative; align-self: end; height: 210px; overflow: hidden; border: 6px solid var(--navy); background: #a5c7c2; box-shadow: inset 0 0 0 5px rgba(255, 255, 255, 0.22); }
+.shop-window, .shop-door { position: relative; grid-row: 2; min-width: 0; align-self: end; height: 210px; overflow: hidden; border: 6px solid var(--navy); background: #a5c7c2; box-shadow: inset 0 0 0 5px rgba(255, 255, 255, 0.22); }
 .shop-window { display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 24px 12px 28px; }
 .shop-window::before, .shop-window::after { position: absolute; width: 52px; height: 100px; bottom: -22px; border-radius: 50% 50% 8px 8px; background: #6f9e76; content: ""; }
 .shop-window::before { left: 12px; transform: rotate(-8deg); }
 .shop-window::after { right: 12px; transform: rotate(8deg); }
-.shop-window span { z-index: 1; padding: 5px 10px; border: 2px solid var(--navy); border-radius: 999px; background: #fff3dc; color: var(--navy); font-size: 10px; font-weight: 900; letter-spacing: 0.16em; }
+.shop-window span { z-index: 1; padding: 5px 6px; border: 2px solid var(--navy); border-radius: 999px; background: #fff3dc; color: var(--navy); font-size: clamp(8px, .8vw, 10px); font-weight: 900; letter-spacing: 0.16em; white-space: nowrap; }
 .shop-window i { z-index: 1; color: #fff9ed; font-family: Georgia, serif; font-size: 56px; font-style: normal; text-shadow: 0 3px 0 var(--navy); }
 .shop-door { display: grid; height: 242px; place-items: center; border-radius: 70px 70px 0 0; background: #e9a35e; }
-.shop-door b { position: absolute; top: 76px; padding: 7px 13px; border: 3px solid var(--navy); background: #fff4dd; color: var(--navy); font-size: 10px; letter-spacing: 0.14em; transform: rotate(-3deg); }
+.shop-door b { position: absolute; top: 76px; padding: 7px 6px; border: 3px solid var(--navy); background: #fff4dd; color: var(--navy); font-size: 10px; letter-spacing: 0.14em; white-space: nowrap; transform: rotate(-3deg); }
 .shop-door span { position: absolute; right: 15px; width: 9px; height: 9px; border: 2px solid var(--navy); border-radius: 50%; background: #fff4dd; }
 
 .scene-caption { position: absolute; z-index: 4; right: 0; bottom: 8px; display: flex; max-width: 265px; padding: 16px 20px; flex-direction: column; border: 1px solid rgba(53, 48, 44, 0.14); border-radius: 18px; background: rgba(255, 250, 240, 0.9); box-shadow: 0 14px 40px rgba(60, 43, 30, 0.12); }
@@ -344,12 +346,12 @@ button:disabled { cursor: not-allowed; opacity: 0.48; }
   .password-row .primary-button { width: 100%; }
   .store-scene { min-height: 390px; }
   .sun-orbit { width: 275px; height: 275px; }
-  .store-building { right: 0; bottom: 44px; left: 0; min-height: 264px; padding: 73px 15px 17px; gap: 8px; border-width: 5px; }
+  .store-building { right: 0; bottom: 44px; left: 0; min-height: 264px; padding: 73px 15px 17px; grid-template-rows: auto 170px; column-gap: 8px; row-gap: 12px; border-width: 5px; }
   .awning { height: 66px; border-width: 5px; }
-  .store-sign { top: 72px; font-size: 12px; }
+  .store-sign { font-size: 12px; }
   .shop-window, .shop-door { height: 146px; border-width: 4px; }
   .shop-door { height: 170px; }
-  .shop-door b { top: 48px; padding: 5px 8px; }
+  .shop-door b { top: 48px; padding: 5px 6px; }
   .shop-window i { font-size: 38px; }
   .shop-window span { padding: 4px 7px; font-size: 8px; }
   .scene-caption { right: 8px; bottom: 2px; padding: 12px 15px; }
