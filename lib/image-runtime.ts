@@ -45,20 +45,21 @@ export async function loadCachedArtwork(source: string, dependencies: {
     if (!response.ok || !response.headers.get("content-type")?.startsWith("image/")) throw new Error("插画加载失败，请重试");
     const blob = await withTimeout(response.blob(), 1500, "插画读取超时");
     const src = await toDataUrl(blob, 1500);
-    return { src, image: await decode(src, 2000) };
+    return { artwork: { src, image: await decode(src, 2000) }, blob };
   };
   if (cached) {
-    try { return await decodeResponse(cached); }
+    try { return (await decodeResponse(cached)).artwork; }
     catch { void cache?.delete(source).catch(() => undefined); }
   }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 7000);
   try {
     const response = await withTimeout(fetcher(source, { cache: "force-cache", signal: controller.signal }), 7000, "插画加载超时，请重试");
-    const copy = response.clone();
-    const artwork = await decodeResponse(response);
+    const { artwork, blob } = await decodeResponse(response);
     // Store only successfully decoded static artwork, never private API data.
-    if (cache) void withTimeout(cache.put(source, copy), 1000, "Cache unavailable").catch(() => undefined);
+    // A new Blob-backed response is independent of the fetch AbortSignal.
+    // A cloned fetch response can otherwise be aborted before cache.put ends.
+    if (cache) void withTimeout(cache.put(source, new Response(blob, { headers: { "Content-Type": blob.type } })), 1000, "Cache unavailable").catch(() => undefined);
     return artwork;
   } finally { clearTimeout(timer); controller.abort(); }
 }

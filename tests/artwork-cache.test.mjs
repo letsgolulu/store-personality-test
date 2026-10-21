@@ -51,3 +51,14 @@ test("HTTP errors are not decoded or saved as successful artwork",async () => {
   }),/加载失败/);
   assert.equal(stored,0);
 });
+test("persistent writes use a detached Blob response, safe after fetch cancellation",async () => {
+  let cached;
+  let signal;
+  await loadCachedArtwork("/illustrations/optimized/test.webp",{
+    ...helpers,cacheStorage:{open:async()=>({match:async()=>undefined,put:async(_,value)=>{cached=value;}})},
+    fetcher:async(_,options)=>{signal=options.signal;return response();},
+  });
+  assert.equal(signal.aborted,true);
+  assert.equal(await cached.text(),"image-bytes");
+  assert.equal(cached.headers.get("content-type"),"image/webp");
+});
